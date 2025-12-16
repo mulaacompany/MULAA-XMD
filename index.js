@@ -58,12 +58,12 @@ async function downloadSessionData() {
 
     const sessdata = config.SESSION_ID.split("IK~")[1];
 
-    if (!sessdata || !sessdata.includes("#")) {
+    if (!sessdata || !sessdata.includes("IK")) {
         console.error('❌ Invalid SESSION_ID format! It must contain both file ID and decryption key.');
         return false;
     }
 
-    const [fileID, decryptKey] = sessdata.split("#");
+    const [fileID, decryptKey] = sessdata.split("IK");
 
     try {
         console.log("🔄 Downloading Session...");

@@ -1,8 +1,3 @@
-// MULAA XMD BOT - Enhanced Session Handler
-// Creator: Amantle Mpaekae (Mulax Prime)
-// Location: /index.js (Updated Session Download Section)
-// Sigil: [MULAA_XMD_SESSION_V2]
-
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -25,282 +20,22 @@ import moment from 'moment-timezone';
 import axios from 'axios';
 import config from './config.cjs';
 import pkg from './lib/autoreact.cjs';
-import { inflateSync } from 'zlib'; // For decompression
 const { emojis, doReact } = pkg;
+import zlib from 'zlib';
 
-// ========================
-// ENHANCED SESSION HANDLER
-// ========================
-
-/**
- * Detect session ID format and handle appropriately
- * @param {String} sessionId - The SESSION_ID from config
- * @returns {Object} - Format detection result
- */
-function detectSessionFormat(sessionId) {
-    console.log("[MULAA] 🔍 Analyzing session format...");
-    
-    if (!sessionId) {
-        return { type: 'none', valid: false, message: 'No session ID provided' };
-    }
-    
-    // Check if it's MEGA.nz format (MULAA~fileID#decryptKey)
-    if (sessionId.startsWith("MULAA~") && sessionId.includes("#")) {
-        const parts = sessionId.replace("MULAA~", "").split("#");
-        if (parts.length === 2) {
-            const [fileId, decryptKey] = parts;
-            
-            // Validate MEGA format lengths
-            if (fileId.length >= 11 && fileId.length <= 12 && 
-                decryptKey.length >= 43 && decryptKey.length <= 44) {
-                return {
-                    type: 'mega',
-                    valid: true,
-                    fileId,
-                    decryptKey,
-                    message: 'MEGA.nz session format detected'
-                };
-            }
-        }
-    }
-    
-    // Check if it's Base64 compressed format
-    if (sessionId.startsWith("MULAA~") && sessionId.length > 1000) {
-        // Likely compressed session data
-        const compressedData = sessionId.replace("MULAA~", "");
-        
-        // Check if it's valid Base64
-        const base64Regex = /^[A-Za-z0-9+/=]+$/;
-        if (base64Regex.test(compressedData)) {
-            return {
-                type: 'compressed',
-                valid: true,
-                data: compressedData,
-                message: 'Compressed session format detected'
-            };
-        }
-    }
-    
-    // Check if it's direct JSON
-    if (sessionId.startsWith("{") || sessionId.startsWith("[")) {
-        try {
-            JSON.parse(sessionId);
-            return {
-                type: 'json',
-                valid: true,
-                message: 'Direct JSON session format'
-            };
-        } catch (e) {
-            // Not valid JSON
-        }
-    }
-    
-    return {
-        type: 'unknown',
-        valid: false,
-        message: 'Unknown session format'
-    };
-}
-
-/**
- * Download session from MEGA.nz
- */
-async function downloadMegaSession(fileId, decryptKey) {
-    console.log("[MULAA] 🌐 Downloading from MEGA.nz...");
-    
-    try {
-        const file = File.fromURL(`https://mega.nz/file/${fileId}#${decryptKey}`);
-        
-        const essence = await new Promise((resolve, reject) => {
-            file.download((err, data) => {
-                if (err) reject(err);
-                else resolve(data);
-            });
-        });
-        
-        // Save to creds.json
-        const essencePath = path.join(mulaaSanctum, 'creds.json');
-        await fs.promises.writeFile(essencePath, essence);
-        
-        console.log("[MULAA] ✅ MEGA session downloaded successfully!");
-        return true;
-    } catch (error) {
-        console.error('[MULAA] ❌ MEGA download failed:', error.message);
-        return false;
-    }
-}
-
-/**
- * Decompress and save compressed session
- */
-async function handleCompressedSession(compressedData) {
-    console.log("[MULAA] 🔄 Decompressing session data...");
-    
-    try {
-        // Decode Base64
-        const buffer = Buffer.from(compressedData, 'base64');
-        
-        // Check if it's gzipped (starts with 0x1F8B)
-        let sessionData;
-        if (buffer[0] === 0x1F && buffer[1] === 0x8B) {
-            // Gzipped data
-            sessionData = inflateSync(buffer);
-        } else {
-            // Direct data
-            sessionData = buffer;
-        }
-        
-        // Parse as JSON to validate
-        const parsed = JSON.parse(sessionData.toString());
-        
-        // Save to creds.json
-        const essencePath = path.join(mulaaSanctum, 'creds.json');
-        await fs.promises.writeFile(essencePath, JSON.stringify(parsed, null, 2));
-        
-        console.log("[MULAA] ✅ Compressed session restored successfully!");
-        return true;
-    } catch (error) {
-        console.error('[MULAA] ❌ Session decompression failed:', error.message);
-        return false;
-    }
-}
-
-/**
- * Enhanced chronicle essence handler
- */
-async function downloadChronicleEssence() {
-    console.log("[MULAA] 🔍 Verifying chronicle essence...");
-
-    if (!config.SESSION_ID || config.SESSION_ID === "MULAA~YourChronicleEssenceHere") {
-        console.log('[MULAA] ⚠️ No valid session ID found in config');
-        return false;
-    }
-
-    // Detect session format
-    const format = detectSessionFormat(config.SESSION_ID);
-    console.log(`[MULAA] 📊 Format: ${format.type} - ${format.message}`);
-
-    if (!format.valid) {
-        console.error('[MULAA] ❌ Invalid session format');
-        return false;
-    }
-
-    try {
-        switch (format.type) {
-            case 'mega':
-                return await downloadMegaSession(format.fileId, format.decryptKey);
-                
-            case 'compressed':
-                return await handleCompressedSession(format.data);
-                
-            case 'json':
-                // Direct JSON - save as is
-                const essencePath = path.join(mulaaSanctum, 'creds.json');
-                await fs.promises.writeFile(essencePath, config.SESSION_ID);
-                console.log("[MULAA] ✅ Direct JSON session saved!");
-                return true;
-                
-            default:
-                console.error('[MULAA] ❌ Unsupported session format');
-                return false;
-        }
-    } catch (error) {
-        console.error('[MULAA] ❌ Session handling failed:', error);
-        return false;
-    }
-}
-
-// ========================
-// SESSION COMPRESSION TOOL (NEW)
-// ========================
-
-/**
- * Tool to compress existing session for easy sharing
- * Run: node compress-session.js
- */
-function createCompressionTool() {
-    const compressionTool = `
-// MULAA XMD BOT - Session Compression Tool
-// Location: /tools/compress-session.js
-// Run: node tools/compress-session.js
-
-const fs = require('fs');
-const path = require('path');
-const { gzipSync } = require('zlib');
-
-async function compressSession() {
-    const sessionPath = path.join(__dirname, '../chronicles/creds.json');
-    
-    if (!fs.existsSync(sessionPath)) {
-        console.error('❌ No session file found at:', sessionPath);
-        console.log('Please run the bot first to generate a session.');
-        return;
-    }
-    
-    try {
-        // Read session file
-        const sessionData = fs.readFileSync(sessionPath, 'utf8');
-        
-        // Compress using gzip
-        const compressed = gzipSync(sessionData);
-        const base64 = compressed.toString('base64');
-        
-        // Create MULAA~ format
-        const compressedSession = \`MULAA~\${base64}\`;
-        
-        console.log('✅ Session compressed successfully!');
-        console.log('\\n📋 Your compressed session ID:');
-        console.log('='.repeat(60));
-        console.log(compressedSession);
-        console.log('='.repeat(60));
-        console.log('\\n📏 Length:', compressedSession.length, 'characters');
-        console.log('\\n💡 Add this to your config.cjs:');
-        console.log('SESSION_ID = "' + compressedSession + '"');
-        console.log('\\n⚠️ Keep this session ID secure!');
-        
-        // Also save to file
-        fs.writeFileSync('compressed-session.txt', compressedSession);
-        console.log('📁 Also saved to: compressed-session.txt');
-        
-    } catch (error) {
-        console.error('❌ Compression failed:', error.message);
-    }
-}
-
-compressSession();
-`;
-
-    // Create tools directory if it doesn't exist
-    const toolsDir = path.join(process.cwd(), 'tools');
-    if (!fs.existsSync(toolsDir)) {
-        fs.mkdirSync(toolsDir, { recursive: true });
-    }
-    
-    // Save compression tool
-    const toolPath = path.join(toolsDir, 'compress-session.js');
-    fs.writeFileSync(toolPath, compressionTool);
-    console.log("[MULAA] 🔧 Created session compression tool at:", toolPath);
-}
-
-// ========================
-// YOUR EXISTING CODE (UPDATED)
-// ========================
-
-// MULAA Configuration Essence
 const prefix = process.env.PREFIX || config.PREFIX;
-const sessionName = "chronicle";
+const sessionName = "session";
 const app = express();
-const mulaaPurple = chalk.bold.hex("#6A11CB");
-const mulaaGold = chalk.bold.hex("#FFD700");
+const orange = chalk.bold.hex("#FFA500");
+const lime = chalk.bold.hex("#32CD32");
 let useQR = false;
-let initialCommunion = true;
-const PORT = process.env.PORT || 50900;
+let initialConnection = true;
+const PORT = process.env.PORT || 3000;
 
-// Sacred Logger - Chronicles all events
-const MULAA_LOGGER = pino({
-    timestamp: () => \`,"time":"\${new Date().toJSON()}"\`
+const MAIN_LOGGER = pino({
+    timestamp: () => `,"time":"${new Date().toJSON()}"`
 });
-const logger = MULAA_LOGGER.child({});
+const logger = MAIN_LOGGER.child({});
 logger.level = "trace";
 
 const msgRetryCounterCache = new NodeCache();
@@ -308,123 +43,289 @@ const msgRetryCounterCache = new NodeCache();
 const __filename = new URL(import.meta.url).pathname;
 const __dirname = path.dirname(__filename);
 
-// Chronicle Sanctum Paths
-const mulaaSanctum = path.join(__dirname, 'chronicles');
-const essencePath = path.join(mulaaSanctum, 'creds.json');
+const sessionDir = path.join(__dirname, 'session');
+const credsPath = path.join(sessionDir, 'creds.json');
 
-if (!fs.existsSync(mulaaSanctum)) {
-    fs.mkdirSync(mulaaSanctum, { recursive: true });
+if (!fs.existsSync(sessionDir)) {
+    fs.mkdirSync(sessionDir, { recursive: true });
 }
 
-// Create compression tool on first run
-createCompressionTool();
-
-async function awakenMulaaConduit() {
+async function decodeBase64Session() {
+    console.log("🔍 Checking for base64 session...");
+    
+    if (!config.SESSION_ID || typeof config.SESSION_ID !== 'string') {
+        console.error('❌ No SESSION_ID found in config!');
+        return false;
+    }
+    
+    // Check if it's base64 (common base64 pattern)
+    const isBase64 = /^[A-Za-z0-9+/=]+$/.test(config.SESSION_ID);
+    const isGzippedBase64 = config.SESSION_ID.startsWith('H4sI'); // gzip magic bytes in base64
+    
+    if (!isBase64 && !isGzippedBase64) {
+        console.error('❌ SESSION_ID does not appear to be valid base64!');
+        return false;
+    }
+    
     try {
-        const { state, saveCreds } = await useMultiFileAuthState(mulaaSanctum);
-        const { version, isLatest } = await fetchLatestBaileysVersion();
-        console.log(\`[MULAA] ⚡ XMD BOT using WA v\${version.join('.')}, Latest: \${isLatest}\`);
+        console.log("🔄 Decoding base64 session data...");
         
-        const MulaaConduit = makeWASocket({
+        // Decode base64
+        const buffer = Buffer.from(config.SESSION_ID, 'base64');
+        
+        let sessionData;
+        
+        // Check if it's gzipped (starts with gzip magic bytes: 0x1f 0x8b)
+        if (buffer[0] === 0x1f && buffer[1] === 0x8b) {
+            console.log("📦 Detected gzipped data, decompressing...");
+            sessionData = zlib.gunzipSync(buffer);
+        } else {
+            console.log("📄 Using raw base64 data...");
+            sessionData = buffer;
+        }
+        
+        // Try to parse as JSON to verify it's valid
+        try {
+            const jsonData = JSON.parse(sessionData.toString());
+            console.log("✅ Valid JSON session data detected");
+        } catch (e) {
+            console.log("⚠️ Session data is not JSON, writing as raw data...");
+        }
+        
+        // Write to file
+        await fs.promises.writeFile(credsPath, sessionData);
+        console.log("✅ Session successfully loaded from base64!");
+        console.log("📁 Session saved to:", credsPath);
+        
+        // Show file size
+        const stats = fs.statSync(credsPath);
+        console.log(`📊 Session file size: ${stats.size} bytes`);
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to decode/process base64 session:', error.message);
+        console.error('Stack:', error.stack);
+        return false;
+    }
+}
+
+async function downloadSessionData() {
+    console.log("🔍 Checking for Mega.nz session...");
+    
+    if (!config.SESSION_ID || !config.SESSION_ID.startsWith('IK~')) {
+        console.log('ℹ️ No Mega.nz session ID found (should start with IK~)');
+        return false;
+    }
+
+    const sessdata = config.SESSION_ID.split("IK~")[1];
+
+    if (!sessdata || !sessdata.includes("#")) {
+        console.error('❌ Invalid Mega.nz SESSION_ID format!');
+        return false;
+    }
+
+    const [fileID, decryptKey] = sessdata.split("#");
+
+    try {
+        console.log("🔄 Downloading Mega.nz session...");
+        const file = File.fromURL(`https://mega.nz/file/${fileID}#${decryptKey}`);
+
+        const data = await new Promise((resolve, reject) => {
+            file.download((err, data) => {
+                if (err) reject(err);
+                else resolve(data);
+            });
+        });
+
+        await fs.promises.writeFile(credsPath, data);
+        console.log("✅ Mega.nz session successfully loaded!");
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to download Mega.nz session:', error);
+        return false;
+    }
+}
+
+async function start() {
+    try {
+        const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+        const { version, isLatest } = await fetchLatestBaileysVersion();
+        console.log(`🤖 JAWAD-MD using WA v${version.join('.')}, isLatest: ${isLatest}`);
+        
+        const Matrix = makeWASocket({
             version,
             logger: pino({ level: 'silent' }),
             printQRInTerminal: useQR,
-            browser: ["MULAA-XMD", "safari", "1.0"],
+            browser: ["JAWAD-MD", "safari", "3.3"],
             auth: state,
             getMessage: async (key) => {
-                return { conversation: "MULAA XMD BOT - Tribute Automation System" };
+                if (store) {
+                    const msg = await store.loadMessage(key.remoteJid, key.id);
+                    return msg.message || undefined;
+                }
+                return { conversation: "JAWAD-MD whatsapp user bot" };
             }
         });
 
-        // ... [KEEP YOUR EXISTING EVENT HANDLERS HERE] ...
-        // They remain exactly the same
+        Matrix.ev.on('connection.update', (update) => {
+            const { connection, lastDisconnect } = update;
+            if (connection === 'close') {
+                const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+                console.log('Connection closed due to ', lastDisconnect.error, ', reconnecting ', shouldReconnect);
+                if (shouldReconnect) {
+                    setTimeout(start, 5000); // Reconnect after 5 seconds
+                }
+            } else if (connection === 'open') {
+                if (initialConnection) {
+                    console.log(chalk.green("✅ Connected Successfully JAWAD MD 🤍"));
+                    // Send welcome message
+                    Matrix.sendMessage(Matrix.user.id, { 
+                        image: { url: "https://files.catbox.moe/pf270b.jpg" }, 
+                        caption: `*Hello there JAWAD-MD User! 👋🏻* 
+
+> Simple, Straightforward, But Loaded With Features 🎊. Meet JAWAD-MD WhatsApp Bot.
+
+*Thanks for using JAWAD-MD 🚩* 
+
+> Join WhatsApp Channel: ⤵️  
+https://whatsapp.com/channel/0029VatOy2EAzNc2WcShQw1j
+
+- *YOUR PREFIX:* = ${prefix}
+
+Don't forget to give a star to the repo ⬇️  
+https://github.com/JawadTechXD/JAWAD-MD
+
+> © Powered BY JawadTechX 🖤`
+                    });
+                    initialConnection = false;
+                } else {
+                    console.log(chalk.blue("♻️ Connection reestablished."));
+                }
+            }
+        });
+        
+        Matrix.ev.on('creds.update', saveCreds);
+
+        Matrix.ev.on("messages.upsert", async chatUpdate => await Handler(chatUpdate, Matrix, logger));
+        Matrix.ev.on("call", async (json) => await Callupdate(json, Matrix));
+        Matrix.ev.on("group-participants.update", async (messag) => await GroupUpdate(Matrix, messag));
+
+        if (config.MODE === "public") {
+            Matrix.public = true;
+        } else if (config.MODE === "private") {
+            Matrix.public = false;
+        }
+
+        // Combined messages.upsert handler
+        Matrix.ev.on('messages.upsert', async (chatUpdate) => {
+            try {
+                const mek = chatUpdate.messages[0];
+                if (!mek || !mek.key) return;
+                
+                const fromJid = mek.key.participant || mek.key.remoteJid;
+                
+                // Auto-react feature
+                if (!mek.key.fromMe && config.AUTO_REACT && mek.message) {
+                    const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+                    await doReact(randomEmoji, mek, Matrix);
+                }
+                
+                // Auto status seen feature
+                if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.AUTO_STATUS_SEEN) {
+                    await Matrix.readMessages([mek.key]);
+                    
+                    if (config.AUTO_STATUS_REPLY) {
+                        const customMessage = config.STATUS_READ_MSG || '✅ Auto Status Seen Bot By JAWAD-MD';
+                        await Matrix.sendMessage(fromJid, { text: customMessage }, { quoted: mek });
+                    }
+                }
+            } catch (err) {
+                console.error('Error in messages.upsert handler:', err);
+            }
+        });
 
     } catch (error) {
-        console.error('[MULAA] ⚡ Critical Communion Error:', error);
-        process.exit(1);
+        console.error('Critical Error:', error);
+        console.error('Stack:', error.stack);
+        setTimeout(start, 10000); // Try to restart after 10 seconds
     }
 }
 
-async function initiateMulaaRitual() {
-    if (fs.existsSync(essencePath)) {
-        console.log("[MULAA] 📜 Chronicle essence found, awakening conduit...");
-        await awakenMulaaConduit();
-    } else {
-        console.log("[MULAA] 🔄 Checking for session configuration...");
+async function init() {
+    console.log(chalk.cyan("🚀 Starting JAWAD-MD Bot..."));
+    console.log(chalk.yellow(`📁 Session directory: ${sessionDir}`));
+    
+    // Check if session already exists
+    if (fs.existsSync(credsPath)) {
+        console.log(chalk.green("✅ Found existing session file"));
+        const stats = fs.statSync(credsPath);
+        console.log(chalk.blue(`📊 Session file size: ${stats.size} bytes`));
+        await start();
+        return;
+    }
+    
+    // Try different session loading methods
+    console.log(chalk.yellow("🔍 Looking for session configuration..."));
+    
+    if (config.SESSION_ID) {
+        console.log(chalk.blue(`📝 SESSION_ID found (length: ${config.SESSION_ID.length})`));
         
-        const format = detectSessionFormat(config.SESSION_ID);
-        console.log(\`[MULAA] 📊 Detected format: \${format.type}\`);
-        
-        if (format.valid) {
-            const downloaded = await downloadChronicleEssence();
+        // Try Mega.nz first if it starts with IK~
+        if (config.SESSION_ID.startsWith('IK~')) {
+            console.log(chalk.cyan("🔗 Mega.nz session detected"));
+            const downloaded = await downloadSessionData();
             if (downloaded) {
-                console.log("[MULAA] ✅ Session loaded, initiating communion...");
-                await awakenMulaaConduit();
-            } else {
-                console.log("[MULAA] ❌ Session download failed, showing QR...");
-                useQR = true;
-                await awakenMulaaConduit();
+                await start();
+                return;
             }
-        } else {
-            console.log("[MULAA] ✨ No valid session found - QR sigil will manifest...");
-            useQR = true;
-            await awakenMulaaConduit();
+        }
+        
+        // Try base64 decoding
+        console.log(chalk.cyan("🔐 Trying base64 session decoding..."));
+        const decoded = await decodeBase64Session();
+        if (decoded) {
+            await start();
+            return;
         }
     }
+    
+    // If no session found or all methods failed
+    console.log(chalk.yellow("⚠️ No valid session found. Using QR code authentication..."));
+    useQR = true;
+    await start();
 }
 
-initiateMulaaRitual();
+init();
 
 app.get('/', (req, res) => {
-    res.send('MULAA XMD BOT - The Heartstone is active. For Legacy. For the Code. For MULAA.');
-});
-
-app.get('/chronicle', (req, res) => {
-    res.json({
-        project: "MULAA XMD BOT",
-        creator: "Amantle Mpaekae (Mulax Prime)",
-        purpose: "Tribute automation and cinematic integration",
-        status: "Heartstone Active",
-        version: "2.0.0",
-        session_format: detectSessionFormat(config.SESSION_ID).type,
-        timestamp: new Date().toISOString()
-    });
-});
-
-app.get('/session-info', (req, res) => {
-    const format = detectSessionFormat(config.SESSION_ID);
-    res.json({
-        has_session: !!config.SESSION_ID,
-        session_format: format.type,
-        session_valid: format.valid,
-        session_length: config.SESSION_ID?.length || 0,
-        supports: ['mega', 'compressed', 'json', 'qr'],
-        tools_available: ['/tools/compress-session.js']
-    });
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>JAWAD-MD Bot</title>
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+                h1 { color: #333; }
+                .status { 
+                    background: #4CAF50; 
+                    color: white; 
+                    padding: 10px 20px; 
+                    border-radius: 5px;
+                    display: inline-block;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>🤖 JAWAD-MD WhatsApp Bot</h1>
+            <div class="status">🟢 Bot is running</div>
+            <p>Check the console for QR code if not authenticated</p>
+            <p>Port: ${PORT}</p>
+        </body>
+        </html>
+    `);
 });
 
 app.listen(PORT, () => {
-    const format = detectSessionFormat(config.SESSION_ID);
-    console.log(mulaaPurple(\`
-╔══════════════════════════════════════════════════╗
-║           MULAA XMD BOT - HEARTSTONE ACTIVE      ║
-╠══════════════════════════════════════════════════╣
-║                                                  ║
-║  Creator: Amantle Mpaekae (Mulax Prime)          ║
-║  Project: MULAA XMD BOT v2.0                     ║
-║  Communion Port: \${PORT}                         ║
-║  Session Format: \${format.type.toUpperCase()}    ║
-║  Session Valid: \${format.valid ? '✅' : '❌'}     \${format.valid ? '' : '(QR will show)'}\$
-║                                                  ║
-║  Endpoints:                                      ║
-║  • /chronicle - Bot info                         ║
-║  • /session-info - Session details               �║
-║                                                  ║
-║  Tools:                                          ║
-║  • node tools/compress-session.js                ║
-║                                                  ║
-║  For Legacy. For the Code. For MULAA.            ║
-║                                                  ║
-╚══════════════════════════════════════════════════╝
-\`));
+    console.log(chalk.green(`🌐 Express server running on port ${PORT}`));
+    console.log(chalk.green(`🌐 Web interface: http://localhost:${PORT}`));
 });
